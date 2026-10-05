@@ -111,21 +111,36 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 		let disp = positions[i].sub(positions[j]) / positions[i].sub(positions[j]).len()
 		let forceS = disp.scale(stiffness * (positions[i].sub(positions[j]).len() - springs[k].rest))
 		let forceD = disp.scale(damping * (velocities[i].sub(velocities[j])).dot(disp))
-		forces[i] -= (forceS + forceD)
-		forces[j] += (forceS + forceD)
+		forces[i] = forces[i].sub(forceS + forceD)
+		forces[j] = forces[j].add(forceS + forceD)
 	}
 	for (var i = 0; i < n; i++){
-		forces[i] -= gravity * particleMass
+		forces[i].z -= gravity * particleMass
 	}
 
 	for (var i = 0; i < n; i++){
-		velocities[i] += forces[i] / particleMass * dt;
+		velocities[i] = velocities[i].add(forces[i] / particleMass * dt)
 	}
 
 	for (var i = 0; i < n ; i++){
-		positions[i] += velocities[i] * dt;
-		if (positions[i] < 0){
-			positions[i] *= (-restitution)
+		positions[i] = positions[i].add(velocities[i] * dt)
+		if (positions[i].x < -1){
+			positions[i].x = -1 - restitution * (positions[i].x + 1)
+		}
+		if (positions[i].x > 1){
+			positions[i].x = 1 - restitution * (positions[i].x - 1)
+		}
+		if (positions[i].y < -1){
+			positions[i].y = -1 - restitution * (positions[i].y + 1)
+		}
+		if (positions[i].y > 1){
+			positions[i].y = 1 - restitution * (positions[i].y - 1)
+		}
+		if (positions[i].z < -1){
+			positions[i].z = -1 - restitution * (positions[i].z + 1)
+		}
+		if (positions[i].z > 1){
+			positions[i].z = 1 - restitution * (positions[i].z - 1)
 		}
 	}
 	return;
