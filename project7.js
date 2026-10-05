@@ -104,8 +104,9 @@ class MeshDrawer
 function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, particleMass, gravity, restitution )
 {
 	var forces = Array(positions.length); // The total for per particle
-
-	
+	for (var i = 0; i < springs.length; i++){
+		consolelog(springs[i])
+	}
 
 	// [TO-DO] Compute the total force of each particle
 	
