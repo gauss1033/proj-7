@@ -189,25 +189,29 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
     for (var i = 0; i < n; i++){
 		forces[i] = new Vec3(0, 0, -1 * gravity * particleMass);
     }
-	for (var k = 0; k < springs.length; i++){
+	for (var k = 0; k < springs.length; k++){
 		let i = springs[k].p0
 		let j = springs[k].p1
 		let disp = positions[i].sub(positions[j])
         disp.scale(1/(positions[i].sub(positions[j]).len()))
-		let forceS = disp
+		let forceS = disp.copy()
         forceS.scale(stiffness * (positions[i].sub(positions[j]).len() - springs[k].rest))
-		let forceD = disp
+		let forceD = disp.copy()
         forceD.scale(damping * (velocities[i].sub(velocities[j])).dot(disp))
 		forces[i] = forces[i].sub(forceS.add(forceD))
 		forces[j] = forces[j].add(forceS.add(forceD))
 	}
 
 	for (var i = 0; i < n; i++){
-		velocities[i] = velocities[i].add(forces[i] / particleMass * dt)
+        dv = forces[i]
+        dv.scale(1/(particleMass * dt))
+		velocities[i] = velocities[i].add(dv)
 	}
 
 	for (var i = 0; i < n ; i++){
-		positions[i] = positions[i].add(velocities[i] * dt)
+        dx = velocities[i]
+        dx.scale(dt)
+		positions[i] = positions[i].add(dx)
 		if (positions[i].x < -1){
 			positions[i].x = -1 - restitution * (positions[i].x + 1)
 		}
