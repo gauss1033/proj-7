@@ -214,21 +214,27 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 		positions[i] = positions[i].add(dx)
 		if (positions[i].x < -1){
 			positions[i].x = -1 - restitution * (positions[i].x + 1)
+            velocities[i].x = - restitution * velocities[i].x
 		}
-		if (positions[i].x > 1){
+		else if (positions[i].x > 1){
 			positions[i].x = 1 - restitution * (positions[i].x - 1)
+            velocities[i].x = - restitution * velocities[i].x
 		}
-		if (positions[i].y < -1){
+		else if (positions[i].y < -1){
 			positions[i].y = -1 - restitution * (positions[i].y + 1)
+            velocities[i].y = - restitution * velocities[i].y
 		}
-		if (positions[i].y > 1){
+		else if (positions[i].y > 1){
 			positions[i].y = 1 - restitution * (positions[i].y - 1)
+            velocities[i].y = - restitution * velocities[i].y
 		}
-		if (positions[i].z < -1){
+		else if (positions[i].z < -1){
 			positions[i].z = -1 - restitution * (positions[i].z + 1)
+            velocities[i].z = - restitution * velocities[i].z
 		}
-		if (positions[i].z > 1){
+		else if (positions[i].z > 1){
 			positions[i].z = 1 - restitution * (positions[i].z - 1)
+            velocities[i].z = - restitution * velocities[i].z
 		}
 	}
 	return;
