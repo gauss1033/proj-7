@@ -1,101 +1,182 @@
-// This function takes the translation and two rotation angles (in radians) as input arguments.
-// The two rotations are applied around x and y axes.
-// It returns the combined 4x4 transformation matrix as an array in column-major order.
-// You can use the MatrixMult function defined in project5.html to multiply two 4x4 matrices in the same format.
-function GetModelViewMatrix( translationX, translationY, translationZ, rotationX, rotationY )
-{
-	// [TO-DO] Modify the code below to form the transformation matrix.
-	var trans = [
-		1, 0, 0, 0,
-		0, 1, 0, 0,
-		0, 0, 1, 0,
-		translationX, translationY, translationZ, 1
-	];
-	var mv = trans;
-	return mv;
+////////////////////////////////////////////
+/////                                  /////
+///// GOT CODEX TO DO PROJECT 5 FOR ME /////
+/////                                  /////
+////////////////////////////////////////////
+
+// Matrices are column-major: rotate about X, then Y, then translate.
+function GetModelViewMatrix(translationX, translationY, translationZ, rotationX, rotationY) {
+    const cx = Math.cos(rotationX), sx = Math.sin(rotationX);
+    const cy = Math.cos(rotationY), sy = Math.sin(rotationY);
+    const rx = [1,0,0,0, 0,cx,sx,0, 0,-sx,cx,0, 0,0,0,1];
+    const ry = [cy,0,-sy,0, 0,1,0,0, sy,0,cy,0, 0,0,0,1];
+    const t = [1,0,0,0, 0,1,0,0, 0,0,1,0, translationX,translationY,translationZ,1];
+    return MatrixMult(t, MatrixMult(ry, rx));
+}
+
+class MeshDrawer {
+    constructor() {
+        this.prog = InitShaderProgram(`
+            attribute vec3 position;
+            attribute vec2 texCoord;
+            attribute vec3 normal;
+            uniform mat4 mvp;
+            uniform mat4 mv;
+            uniform mat3 normalMatrix;
+            uniform bool swapAxes;
+            varying vec2 uv;
+            varying vec3 cameraPosition;
+            varying vec3 cameraNormal;
+            void main() {
+                vec3 p = swapAxes ? position.xzy : position;
+                vec3 n = swapAxes ? normal.xzy : normal;
+                gl_Position = mvp * vec4(p, 1.0);
+                cameraPosition = (mv * vec4(p, 1.0)).xyz;
+                cameraNormal = normalMatrix * n;
+                uv = texCoord;
+            }
+        `, `
+            precision mediump float;
+            uniform sampler2D meshTexture;
+            uniform bool useTexture;
+            uniform vec3 lightDir;
+            uniform float shininess;
+            varying vec2 uv;
+            varying vec3 cameraPosition;
+            varying vec3 cameraNormal;
+            void main() {
+                vec3 n = normalize(cameraNormal);
+                vec3 l = normalize(lightDir);
+                vec3 v = normalize(-cameraPosition);
+                vec3 h = (l + v) / max(length(l + v), 0.0001);
+                float diffuse = max(dot(n, l), 0.0);
+                float specular = diffuse > 0.0
+                    ? pow(max(dot(n, h), 0.0), shininess) : 0.0;
+                vec3 kd = useTexture ? texture2D(meshTexture, uv).rgb : vec3(1.0);
+                // Small optional ambient term keeps unlit surfaces visible.
+                gl_FragColor = vec4(kd * (0.08 + diffuse) + vec3(specular), 1.0);
+            }
+        `);
+        this.attributes = {};
+        for (const name of ['position', 'texCoord', 'normal']) {
+            this.attributes[name] = gl.getAttribLocation(this.prog, name);
+        }
+        this.uniforms = {};
+        for (const name of ['mvp', 'mv', 'normalMatrix', 'swapAxes', 'meshTexture',
+                            'useTexture', 'lightDir', 'shininess']) {
+            this.uniforms[name] = gl.getUniformLocation(this.prog, name);
+        }
+        this.positionBuffer = gl.createBuffer();
+        this.texCoordBuffer = gl.createBuffer();
+        this.normalBuffer = gl.createBuffer();
+        this.texture = gl.createTexture();
+        this.numVertices = 0;
+        this.hasTexture = false;
+        this.hasTexCoords = false;
+        this.textureVisible = true;
+
+        // A complete white texture is needed even before an image is loaded.
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA,
+                      gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.useProgram(this.prog);
+        gl.uniform1i(this.uniforms.meshTexture, 0);
+        this.swapYZ(false);
+        this.setLightDir(0, 0, -1);
+        this.setShininess(100);
+    }
+
+    setMesh(vertPos, texCoords, normals) {
+        this.numVertices = vertPos.length / 3;
+        this.hasTexCoords = !!texCoords && texCoords.length === this.numVertices * 2;
+        const uv = this.hasTexCoords ? texCoords : new Float32Array(this.numVertices * 2);
+        // OBJ files without normals still render using per-triangle normals.
+        if (!normals || normals.length !== vertPos.length) {
+            normals = new Float32Array(vertPos.length);
+            for (let i = 0; i < vertPos.length; i += 9) {
+                const ax = vertPos[i+3] - vertPos[i], ay = vertPos[i+4] - vertPos[i+1];
+                const az = vertPos[i+5] - vertPos[i+2];
+                const bx = vertPos[i+6] - vertPos[i], by = vertPos[i+7] - vertPos[i+1];
+                const bz = vertPos[i+8] - vertPos[i+2];
+                const nx = ay*bz-az*by, ny = az*bx-ax*bz, nz = ax*by-ay*bx;
+                const length = Math.hypot(nx, ny, nz) || 1;
+                for (let j = 0; j < 9; j += 3) {
+                    normals[i+j] = nx/length;
+                    normals[i+j+1] = ny/length;
+                    normals[i+j+2] = nz/length;
+                }
+            }
+        }
+        for (const [buffer, data] of [[this.positionBuffer, vertPos],
+                [this.texCoordBuffer, uv], [this.normalBuffer, normals]]) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+        }
+    }
+
+    swapYZ(swap) {
+        gl.useProgram(this.prog);
+        gl.uniform1i(this.uniforms.swapAxes, swap ? 1 : 0);
+    }
+
+    draw(matrixMVP, matrixMV, matrixNormal) {
+        if (!this.numVertices) return;
+        gl.useProgram(this.prog);
+        gl.uniformMatrix4fv(this.uniforms.mvp, false, matrixMVP);
+        gl.uniformMatrix4fv(this.uniforms.mv, false, matrixMV);
+        gl.uniformMatrix3fv(this.uniforms.normalMatrix, false, matrixNormal);
+        gl.uniform1i(this.uniforms.useTexture,
+            this.textureVisible && this.hasTexture && this.hasTexCoords ? 1 : 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        for (const [name, buffer, size] of [
+            ['position', this.positionBuffer, 3],
+            ['texCoord', this.texCoordBuffer, 2],
+            ['normal', this.normalBuffer, 3]]) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.vertexAttribPointer(this.attributes[name], size, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(this.attributes[name]);
+        }
+        gl.drawArrays(gl.TRIANGLES, 0, this.numVertices);
+        // The box/point drawers share this context and use different buffers.
+        for (const location of Object.values(this.attributes)) gl.disableVertexAttribArray(location);
+    }
+
+    setTexture(img) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        const wasFlipped = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, wasFlipped);
+        // Linear filtering and clamp-to-edge also support non-power-of-two images.
+        this.hasTexture = true;
+    }
+
+    showTexture(show) { this.textureVisible = show; }
+
+    setLightDir(x, y, z) {
+        gl.useProgram(this.prog);
+        gl.uniform3f(this.uniforms.lightDir, x, y, z);
+    }
+
+    setShininess(shininess) {
+        gl.useProgram(this.prog);
+        gl.uniform1f(this.uniforms.shininess, shininess);
+    }
 }
 
 
-// [TO-DO] Complete the implementation of the following class.
-
-class MeshDrawer
-{
-	// The constructor is a good place for taking care of the necessary initializations.
-	constructor()
-	{
-		// [TO-DO] initializations
-	}
-	
-	// This method is called every time the user opens an OBJ file.
-	// The arguments of this function is an array of 3D vertex positions,
-	// an array of 2D texture coordinates, and an array of vertex normals.
-	// Every item in these arrays is a floating point value, representing one
-	// coordinate of the vertex position or texture coordinate.
-	// Every three consecutive elements in the vertPos array forms one vertex
-	// position and every three consecutive vertex positions form a triangle.
-	// Similarly, every two consecutive elements in the texCoords array
-	// form the texture coordinate of a vertex and every three consecutive 
-	// elements in the normals array form a vertex normal.
-	// Note that this method can be called multiple times.
-	setMesh( vertPos, texCoords, normals )
-	{
-		// [TO-DO] Update the contents of the vertex buffer objects.
-		this.numTriangles = vertPos.length / 3;
-	}
-	
-	// This method is called when the user changes the state of the
-	// "Swap Y-Z Axes" checkbox. 
-	// The argument is a boolean that indicates if the checkbox is checked.
-	swapYZ( swap )
-	{
-		// [TO-DO] Set the uniform parameter(s) of the vertex shader
-	}
-	
-	// This method is called to draw the triangular mesh.
-	// The arguments are the model-view-projection transformation matrixMVP,
-	// the model-view transformation matrixMV, the same matrix returned
-	// by the GetModelViewProjection function above, and the normal
-	// transformation matrix, which is the inverse-transpose of matrixMV.
-	draw( matrixMVP, matrixMV, matrixNormal )
-	{
-		// [TO-DO] Complete the WebGL initializations before drawing
-
-		gl.drawArrays( gl.TRIANGLES, 0, this.numTriangles );
-	}
-	
-	// This method is called to set the texture of the mesh.
-	// The argument is an HTML IMG element containing the texture data.
-	setTexture( img )
-	{
-		// [TO-DO] Bind the texture
-
-		// You can set the texture image data using the following command.
-		gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img );
-
-		// [TO-DO] Now that we have a texture, it might be a good idea to set
-		// some uniform parameter(s) of the fragment shader, so that it uses the texture.
-	}
-	
-	// This method is called when the user changes the state of the
-	// "Show Texture" checkbox. 
-	// The argument is a boolean that indicates if the checkbox is checked.
-	showTexture( show )
-	{
-		// [TO-DO] set the uniform parameter(s) of the fragment shader to specify if it should use the texture.
-	}
-	
-	// This method is called to set the incoming light direction
-	setLightDir( x, y, z )
-	{
-		// [TO-DO] set the uniform parameter(s) of the fragment shader to specify the light direction.
-	}
-	
-	// This method is called to set the shininess of the material
-	setShininess( shininess )
-	{
-		// [TO-DO] set the uniform parameter(s) of the fragment shader to specify the shininess.
-	}
-}
+//////////////////////////////////////////////////
+/////                                        /////
+///// PROJECT 7 CODE BELOW WAS WRITTEN BY ME /////
+/////                                        /////
+//////////////////////////////////////////////////
 
 
 // This function is called for every step of the simulation.
