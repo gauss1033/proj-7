@@ -189,11 +189,11 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 	for (var k = 0; k < springs.length; i++){
 		let i = springs[k].p0
 		let j = springs[k].p1
-		let disp = positions[i].sub(positions[j]) / positions[i].sub(positions[j]).len()
+		let disp = positions[i].sub(positions[j]).scale(1/(positions[i].sub(positions[j]).len()))
 		let forceS = disp.scale(stiffness * (positions[i].sub(positions[j]).len() - springs[k].rest))
 		let forceD = disp.scale(damping * (velocities[i].sub(velocities[j])).dot(disp))
-		forces[i] = forces[i].sub(forceS + forceD)
-		forces[j] = forces[j].add(forceS + forceD)
+		forces[i] = forces[i].sub(forceS.add(forceD))
+		forces[j] = forces[j].add(forceS.add(forceD))
 	}
 	for (var i = 0; i < n; i++){
 		forces[i].z -= gravity * particleMass
