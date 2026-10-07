@@ -187,8 +187,8 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 	let n = positions.length
     var forces = Array(n); // The total for per particle
     for (var i = 0; i < n; i++){
-		forces[i].z -= gravity * particleMass
-	}
+		forces[i] = new Vec3(0, 0, -1 * gravity * particleMass);
+    }
 	for (var k = 0; k < springs.length; i++){
 		let i = springs[k].p0
 		let j = springs[k].p1
