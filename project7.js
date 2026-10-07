@@ -206,7 +206,7 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 
 	for (var i = 0; i < n; i++){
         dv = forces[i].copy()
-        dv.scale(1/(particleMass * dt))
+        dv.scale(dt / particleMass)
 		velocities[i] = velocities[i].add(dv)
 	}
 
