@@ -186,8 +186,10 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 {
 	let n = positions.length
     var forces = Array(n); // The total for per particle
+    gravityForce = gravity.copy()
+    gravityForce.scale(particleMass)
     for (var i = 0; i < n; i++){
-		forces[i] = new Vec3(0, 0, -1 * gravity * particleMass);
+		forces[i] = gravityForce;
     }
 	for (var k = 0; k < springs.length; k++){
 		let i = springs[k].p0
@@ -203,38 +205,38 @@ function SimTimeStep( dt, positions, velocities, springs, stiffness, damping, pa
 	}
 
 	for (var i = 0; i < n; i++){
-        dv = forces[i]
+        dv = forces[i].copy()
         dv.scale(1/(particleMass * dt))
 		velocities[i] = velocities[i].add(dv)
 	}
 
 	for (var i = 0; i < n ; i++){
-        dx = velocities[i]
+        dx = velocities[i].copy()
         dx.scale(dt)
 		positions[i] = positions[i].add(dx)
 		if (positions[i].x < -1){
 			positions[i].x = -1 - restitution * (positions[i].x + 1)
-            velocities[i].x = - restitution * velocities[i].x
+            velocities[i].x *= -1 * restitution
 		}
 		else if (positions[i].x > 1){
 			positions[i].x = 1 - restitution * (positions[i].x - 1)
-            velocities[i].x = - restitution * velocities[i].x
+            velocities[i].x *= -1 * restitution
 		}
 		else if (positions[i].y < -1){
 			positions[i].y = -1 - restitution * (positions[i].y + 1)
-            velocities[i].y = - restitution * velocities[i].y
+            velocities[i].y *= -1 * restitution
 		}
 		else if (positions[i].y > 1){
 			positions[i].y = 1 - restitution * (positions[i].y - 1)
-            velocities[i].y = - restitution * velocities[i].y
+            velocities[i].y *= -1 * restitution
 		}
 		else if (positions[i].z < -1){
 			positions[i].z = -1 - restitution * (positions[i].z + 1)
-            velocities[i].z = - restitution * velocities[i].z
+            velocities[i].z *= -1 * restitution
 		}
 		else if (positions[i].z > 1){
 			positions[i].z = 1 - restitution * (positions[i].z - 1)
-            velocities[i].z = - restitution * velocities[i].z
+            velocities[i].z *= -1 * restitution
 		}
 	}
 	return;
