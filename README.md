@@ -1,1 +1,1 @@
-project 7 from utah thing
+project 7 from u utah graphics course
